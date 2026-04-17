@@ -3,13 +3,12 @@
 
 extern crate alloc;
 
-use core::panic::PanicInfo;
-
 use alloc::boxed::Box;
 use rust_no_std::{allocator::BlockHeader, println, syscall::sys_exit};
 
+#[cfg(not(test))]
 #[panic_handler]
-fn panic(_info: &PanicInfo) -> ! {
+fn panic(_info: &core::panic::PanicInfo) -> ! {
     loop {}
 }
 

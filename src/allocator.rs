@@ -1,5 +1,3 @@
-#![allow(warnings)]
-
 use core::alloc::GlobalAlloc;
 
 use crate::println;
@@ -26,34 +24,32 @@ impl BlockHeader {
     ///
     /// 从用户数据指针获取块头结构指针
     ///
-    fn from_user_data_ptr(user_data_ptr: *mut u8) -> *mut BlockHeader {
-        unsafe {
-            let header_size = core::mem::size_of::<BlockHeader>();
-            let header_ptr = (user_data_ptr as usize - header_size) as *mut BlockHeader;
-            header_ptr
-        }
+    unsafe fn from_user_data_ptr(user_data_ptr: *mut u8) -> *mut BlockHeader {
+        let header_size = core::mem::size_of::<BlockHeader>();
+        let header_ptr = (user_data_ptr as usize - header_size) as *mut BlockHeader;
+        header_ptr
     }
 
     ///
     /// 从块头结构指针获取用户数据指针
     ///
-    fn get_user_data_ptr(&self) -> *mut u8 {
-        unsafe {
-            (self as *const BlockHeader as usize + core::mem::size_of::<BlockHeader>()) as *mut u8
-        }
+    unsafe fn get_user_data_ptr(&self) -> *mut u8 {
+        (self as *const BlockHeader as usize + core::mem::size_of::<BlockHeader>()) as *mut u8
     }
 }
 
 ///
 /// 初始化堆内存
 ///
-pub unsafe fn init_heap() {
-    if HEAP_INIT {
-        return;
+pub fn init_heap() {
+    unsafe {
+        if HEAP_INIT {
+            return;
+        }
+        HEAP_START = (&raw const HEAP) as usize;
+        HEAP_PTR = HEAP_START;
+        HEAP_INIT = true;
     }
-    HEAP_START = (&raw const HEAP) as usize;
-    HEAP_PTR = HEAP_START;
-    HEAP_INIT = true;
 }
 
 ///
@@ -119,7 +115,7 @@ struct FreeList {
 }
 
 impl FreeList {
-    fn new() -> Self {
+    const fn new() -> Self {
         FreeList {
             head: core::ptr::null_mut(),
         }
@@ -172,9 +168,7 @@ impl FreeList {
 ///
 /// 全局空闲链表实例
 ///
-static mut FREE_LIST: FreeList = FreeList {
-    head: core::ptr::null_mut(),
-};
+static mut FREE_LIST: FreeList = FreeList::new();
 
 ///
 /// 堆内存分配器实现
@@ -188,15 +182,17 @@ unsafe impl GlobalAlloc for MiniAllocator {
             layout.size(),
             layout.align()
         );
-        // 先尝试从空闲链表中查找一个满足分配请求的块
-        if let Some(block_ptr) =
-            FreeList::find_fit(&raw mut FREE_LIST as *mut FreeList, layout.size())
-        {
-            return (*block_ptr).get_user_data_ptr();
+        unsafe {
+            // 先尝试从空闲链表中查找一个满足分配请求的块
+            if let Some(block_ptr) =
+                FreeList::find_fit(&raw mut FREE_LIST as *mut FreeList, layout.size())
+            {
+                return (*block_ptr).get_user_data_ptr();
+            }
+            // 如果空闲链表中没有满足分配请求的块，则从堆中分配一个新的块
+            let block_ptr = alloc_from_heap(layout.size(), layout.align());
+            (*block_ptr).get_user_data_ptr()
         }
-        // 如果空闲链表中没有满足分配请求的块，则从堆中分配一个新的块
-        let block_ptr = alloc_from_heap(layout.size(), layout.align());
-        (*block_ptr).get_user_data_ptr()
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: core::alloc::Layout) {
@@ -206,14 +202,16 @@ unsafe impl GlobalAlloc for MiniAllocator {
             layout.align(),
             ptr
         );
-        // 获取块头结构指针
-        let block_ptr = BlockHeader::from_user_data_ptr(ptr);
-        if (*block_ptr).is_free {
-            // 如果块已经是空闲的，说明发生了 double free 错误，直接返回
-            panic!("Double free detected");
+        unsafe {
+            // 获取块头结构指针
+            let block_ptr = BlockHeader::from_user_data_ptr(ptr);
+            if (*block_ptr).is_free {
+                // 如果块已经是空闲的，说明发生了 double free 错误，直接返回
+                panic!("Double free detected");
+            }
+            // 将块头结构添加到空闲链表中
+            FreeList::add_free_block(&raw mut FREE_LIST as *mut FreeList, block_ptr);
         }
-        // 将块头结构添加到空闲链表中
-        FreeList::add_free_block(&raw mut FREE_LIST as *mut FreeList, block_ptr);
     }
 }
 

@@ -58,6 +58,7 @@ pub struct UnwindContext;
 pub extern "C" fn _Unwind_Resume(ex: *mut UnwindException) -> ! {
     // 这个函数不应该正常返回
     // 在异常展开失败时，程序应该中止
+    #[allow(unused_unsafe)]
     unsafe {
         // 可以调用 abort 或其他终止函数
         // core::intrinsics::abort();
