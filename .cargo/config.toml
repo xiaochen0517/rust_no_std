@@ -1,0 +1,11 @@
+[build]
+rustflags = [
+    "-C",
+    "link-arg=-nostartfiles",
+    "-C",
+    "link-arg=-nostdlib",
+    "-C",
+    "target-feature=+crt-static",
+    "-C",
+    "relocation-model=static",
+]
