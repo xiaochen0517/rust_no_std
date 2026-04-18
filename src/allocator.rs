@@ -1,8 +1,7 @@
-use core::alloc::GlobalAlloc;
+use core::{alloc::GlobalAlloc, panic};
 
-use crate::println;
+use crate::{println, syscall::sys_mmap};
 
-static mut HEAP: [u8; 1024 * 1024] = [0; 1024 * 1024];
 static HEAP_SIZE: usize = 1024 * 1024; // 1 MiB
 static mut HEAP_INIT: bool = false;
 static mut HEAP_START: usize = 0;
@@ -46,7 +45,12 @@ pub fn init_heap() {
         if HEAP_INIT {
             return;
         }
-        HEAP_START = (&raw const HEAP) as usize;
+        let ptr = sys_mmap(HEAP_SIZE);
+        // MAP_FAILED = 0xFFFFFFFFFFFFFFFF
+        if ptr as usize > usize::MAX - 4096 {
+            panic!("Failed to allocate heap memory with sys_mmap");
+        }
+        HEAP_START = ptr as usize;
         HEAP_PTR = HEAP_START;
         HEAP_INIT = true;
     }
