@@ -55,7 +55,8 @@ pub fn init_heap() {
 ///
 /// 内存对齐函数
 ///
-fn align_up(addr: usize, align: usize) -> usize {
+pub fn align_up(addr: usize, align: usize) -> usize {
+    println!("Aligning address {:#x} up to alignment {}", addr, align);
     (addr + align - 1) & !(align - 1)
 }
 
